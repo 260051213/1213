@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>줄의 길이 및 기준 진동수 조절 음높이 탐구 도구</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        header, .card {
+            background: var(--card-bg);
+            padding: 18px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        h1 { margin: 0 0 8px 0; font-size: 1.4rem; color: var(--primary-color); }
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
+
+        .manual-table-container {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 8px 4px; text-align: center; border-bottom: 1px solid var(--border-color); }
+        th { background-color: #f1f5f9; position: sticky; top: 0; }
+
+        input.table-input {
+            width: 80%;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .btn-group { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button.btn-secondary { background-color: #64748b; }
+        button.btn-danger { background-color: var(--accent-red); }
+        button.btn-audio { background-color: var(--accent-purple); padding: 4px 8px; font-size: 0.75rem; }
+
+        .notice-box {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+
+        .equation-box {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 12px;
+            font-size: 0.95rem;
+        }
+
+        .chart-container { position: relative; height: 320px; width: 100%; }
+        
+        .pitch-badge {
+            background-color: #f3e8ff;
+            color: #6b21a8;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .control-panel {
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .control-group input[type="range"] {
+            flex: 1;
+        }
+
+        .control-group input[type="number"] {
+            width: 70px;
+            padding: 4px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>고등학교 과학탐구: 줄의 길이 및 진동수 조절 음높이 분석</h1>
+        <p style="margin:0; color:#64748b; font-size:0.85rem;">기준 진동수와 줄의 길이를 각각 자유롭게 조절하며 체감 음높이의 변화를 시뮬레이션합니다.</p>
+    </header>
+
+    <div class="grid-layout">
+        <!-- 1. 데이터 입력 및 진동수 조절 -->
+        <div class="card">
+            <h2 style="font-size:1.1rem; margin-top:0;">1. 기준 진동수 조절 및 줄의 길이 입력</h2>
+            
+            <!-- 진동수 직접 조절 패널 -->
+            <div class="control-panel">
+                <label style="font-weight:bold; font-size:0.85rem; color:#166534; display:block;">
+                    ⚙️ 기준 진동수 조절 (20cm 기준 음높이)
+                </label>
+                <div class="control-group">
+                    <input type="range" id="baseFreqSlider" min="100" max="1000" value="440" step="1" oninput="syncBaseFreq(this.value)">
+                    <input type="number" id="baseFreqInput" min="100" max="2000" value="440" oninput="syncBaseFreq(this.value)">
+                    <span style="font-size:0.85rem; font-weight:bold;">Hz</span>
+                </div>
+            </div>
+
+            <div class="manual-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>순번</th>
+                            <th>줄의 길이 L (cm)</th>
+                            <th>삭제</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" id="btnAddRow">+ 길이 추가</button>
+                <button type="button" class="btn-secondary" id="btnSample">샘플 불러오기</button>
+                <button type="button" class="btn-secondary" id="btnClear">초기화</button>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <button type="button" id="btnAnalyze" style="width: 100%; padding: 10px; font-size: 0.95rem;">분석 및 그래프 작성</button>
+            </div>
+        </div>
+
+        <!-- 2. 결과 및 소리 듣기 -->
+        <div class="card">
+            <h2 style="font-size:1.1rem; margin-top:0;">2. 최종 계산된 체감 진동수 및 계이름</h2>
+            <div id="noticeContainer">
+                <div class="notice-box">길이를 입력 후 버튼을 눌러주세요.</div>
+            </div>
+
+            <h3 style="font-size:0.95rem; margin:8px 0;">길이별 출력 진동수 및 음고</h3>
+            <div style="max-height: 180px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>길이 L</th>
+                            <th>출력 진동수</th>
+                            <th>음의 높낮이</th>
+                            <th>소리 듣기</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody">
+                        <tr><td colspan="4" style="color:#94a3b8;">데이터가 없습니다.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="equationDisplay" class="equation-box" style="display:none;">
+                음높이 관계식: <span id="eqText"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 차트 -->
+    <div class="card">
+        <h2 style="font-size:1.1rem; margin-top:0;">3. 줄의 길이에 따른 음의 높낮이(진동수) 관계 그래프</h2>
+        <div class="chart-container">
+            <canvas id="analysisChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+let myChart = null;
+let audioCtx = null;
+let currentBaseFreq = 440; // 기본 기준 진동수
+const BASE_LEN = 20;       // 기준 길이 (20cm)
+
+function getAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+function playTone(freq) {
+    if (!freq || freq <= 0) return;
+    try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.8);
+    } catch (e) {
+        console.error("Audio error:", e);
+    }
+}
+
+// 기준 진동수 조절 동기화 함수
+function syncBaseFreq(val) {
+    const num = parseFloat(val);
+    if (!isNaN(num) && num > 0) {
+        currentBaseFreq = num;
+        document.getElementById('baseFreqSlider').value = num;
+        document.getElementById('baseFreqInput').value = num;
+        processData();
+    }
+}
+
+function freqToPitch(freq) {
+    if (!freq || freq <= 0) return "-";
+    const noteNames = ["도 (C)", "도#", "레 (D)", "레#", "미 (E)", "파 (F)", "파#", "솔 (G)", "솔#", "라 (A)", "라#", "시 (B)"];
+    
+    const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+    const noteIndex = (midi % 12 + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+
+    return `${noteNames[noteIndex]}${octave}`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btnAddRow').addEventListener('click', () => addRow());
+    document.getElementById('btnSample').addEventListener('click', loadSampleData);
+    document.getElementById('btnClear').addEventListener('click', clearTable);
+    document.getElementById('btnAnalyze').addEventListener('click', processData);
+
+    loadSampleData();
+});
+
+function addRow(len = "") {
+    const tbody = document.getElementById('tableBody');
+    const tr = document.createElement('tr');
+    
+    tr.innerHTML = `
+        <td class="row-index"></td>
+        <td><input type="number" step="any" class="table-input len-input" value="${len}" placeholder="예: 10, 20, 30" oninput="processData()"></td>
+        <td><button type="button" class="btn-danger" style="padding: 2px 6px;" onclick="removeRow(this)">X</button></td>
+    `;
+    
+    tbody.appendChild(tr);
+    updateRowNumbers();
+}
+
+function removeRow(btn) {
+    btn.closest('tr').remove();
+    updateRowNumbers();
+    processData();
+}
+
+function updateRowNumbers() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach((row, idx) => {
+        const indexCell = row.querySelector('.row-index');
+        if (indexCell) indexCell.innerText = idx + 1;
+    });
+}
+
+function clearTable() {
+    document.getElementById('tableBody').innerHTML = '';
+    addRow();
+    processData();
+}
+
+function loadSampleData() {
+    document.getElementById('tableBody').innerHTML = '';
+    const sampleLengths = [10, 15, 20, 30, 40, 50];
+    sampleLengths.forEach(l => addRow(l));
+    processData();
+}
+
+function processData() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    let validData = [];
+    let excludedCount = 0;
+
+    rows.forEach(row => {
+        const lenInput = row.querySelector('.len-input');
+        if (!lenInput) return;
+
+        const lenVal = lenInput.value.trim();
+
+        if (lenVal === "" || isNaN(lenVal)) {
+            excludedCount++;
+        } else {
+            const L = parseFloat(lenVal);
+            if (L <= 0) {
+                excludedCount++;
+            } else {
+                const actualFreq = currentBaseFreq * (BASE_LEN / L);
+                validData.push({ L, f: actualFreq });
+            }
+        }
+    });
+
+    const noticeContainer = document.getElementById('noticeContainer');
+    if (validData.length === 0) {
+        noticeContainer.innerHTML = `<div class="notice-box" style="border-color:var(--accent-red); color:var(--accent-red);">유효한 길이 데이터가 없습니다.</div>`;
+        return;
+    }
+
+    noticeContainer.innerHTML = `
+        <div class="notice-box">
+            <strong>기준 진동수 ${currentBaseFreq}Hz 적용 완료:</strong> 총 ${validData.length}개 위치의 음높이가 계산되었습니다.
+        </div>
+    `;
+
+    const summaryTbody = document.getElementById('summaryTableBody');
+    summaryTbody.innerHTML = '';
+    
+    validData.sort((a, b) => a.L - b.L);
+
+    validData.forEach(item => {
+        const pitchText = freqToPitch(item.f);
+        summaryTbody.innerHTML += `
+            <tr>
+                <td><strong>${item.L} cm</strong></td>
+                <td><strong>${item.f.toFixed(1)} Hz</strong></td>
+                <td><span class="pitch-badge">${pitchText}</span></td>
+                <td><button type="button" class="btn-audio" onclick="playTone(${item.f})">🔊 소리 듣기</button></td>
+            </tr>
+        `;
+    });
+
+    const k = currentBaseFreq * BASE_LEN;
+    document.getElementById('equationDisplay').style.display = 'block';
+    document.getElementById('eqText').innerText = `f = ${k.toFixed(0)} / L (기준 ${currentBaseFreq}Hz 적용됨)`;
+
+    renderChart(validData, k);
+}
+
+function renderChart(dataPoints, k) {
+    const ctx = document.getElementById('analysisChart').getContext('2d');
+    if (myChart) myChart.destroy();
+
+    const minL = Math.min(...dataPoints.map(p => p.L));
+    const maxL = Math.max(...dataPoints.map(p => p.L));
+
+    const trendlineData = [];
+    const startL = Math.max(1, minL * 0.8);
+    const endL = maxL * 1.1;
+    const step = (endL - startL) / 100;
+
+    for (let l = startL; l <= endL; l += step) {
+        trendlineData.push({ x: l, y: k / l });
+    }
+
+    myChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: '측정 위치 음높이 (Hz)',
+                    data: dataPoints.map(p => ({ x: p.L, y: p.f })),
+                    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                    pointRadius: 7
+                },
+                {
+                    type: 'line',
+                    label: `반비례 곡선 (k = ${k.toFixed(0)})`,
+                    data: trendlineData,
+                    borderColor: 'rgba(37, 99, 235, 0.8)',
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { title: { display: true, text: '줄의 길이 L (cm)' } },
+                y: { title: { display: true, text: '실제 발생 진동수 f (Hz)' } }
+            }
+        }
+    });
+}
+</script>
+
+</body>
+</html>
